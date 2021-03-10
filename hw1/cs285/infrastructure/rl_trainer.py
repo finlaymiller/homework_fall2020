@@ -1,9 +1,11 @@
-from collections import OrderedDict
+import os
 import numpy as np
 import time
 import pickle
 import gym
 import torch
+import json
+from collections import OrderedDict
 
 from cs285.infrastructure import pytorch_util as ptu
 from cs285.infrastructure.logger import Logger
@@ -46,6 +48,7 @@ class RL_Trainer(object):
         # Maximum length for episodes
         self.params['ep_len'] = self.params['ep_len'] or self.env.spec.max_episode_steps
         MAX_VIDEO_LEN = self.params['ep_len']
+        print(f"ep_len is {self.params['ep_len']}")
 
         # Is this env continuous, or self.discrete?
         discrete = isinstance(self.env.action_space, gym.spaces.Discrete)
@@ -187,7 +190,8 @@ class RL_Trainer(object):
         print('\nTraining agent using sampled data from replay buffer...')
         all_logs = []
         for train_step in range(self.params['num_agent_train_steps_per_iter']):
-
+            if (train_step % 100 == 0):
+                print(f"{train_step}/{self.params['num_agent_train_steps_per_iter']} trainsteps")
             # TODO sample some data from the data buffer
             # HINT1: use the agent's sample function
             # HINT2: how much data = self.params['train_batch_size']
@@ -265,11 +269,33 @@ class RL_Trainer(object):
             if itr == 0:
                 self.initial_return = np.mean(train_returns)
             logs["Initial_DataCollection_AverageReturn"] = self.initial_return
-
+        
             # perform the logging
             for key, value in logs.items():
                 print(f'{key} : {value}')
                 self.logger.log_scalar(value, key, itr)
             print('Done logging...\n\n')
 
+            if not (os.path.exists("data/log.json")):
+                with open("data/log.json", 'w'): pass
+                log = OrderedDict()
+            else:
+                with open(f"data/log.json", "r") as f:
+                    log = json.load(f)
+
+            log[self.params["env_name"]] = logs
+            with open(f"data/log.json", "w") as f:
+                f.write(json.dumps(log, sort_keys=True, indent=2, cls=npEncoder))
+
             self.logger.flush()
+
+class npEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return super(npEncoder, self).default(obj)
