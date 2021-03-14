@@ -5,6 +5,7 @@ import pickle
 import gym
 import torch
 import json
+import csv
 from collections import OrderedDict
 
 from cs285.infrastructure import pytorch_util as ptu
@@ -48,8 +49,6 @@ class RL_Trainer(object):
         # Maximum length for episodes
         self.params['ep_len'] = self.params['ep_len'] or self.env.spec.max_episode_steps
         MAX_VIDEO_LEN = self.params['ep_len']
-        print(f"ep_len is {self.params['ep_len']}")
-
         # Is this env continuous, or self.discrete?
         discrete = isinstance(self.env.action_space, gym.spaces.Discrete)
         self.params['agent_params']['discrete'] = discrete
@@ -276,16 +275,15 @@ class RL_Trainer(object):
                 self.logger.log_scalar(value, key, itr)
             print('Done logging...\n\n')
 
-            if not (os.path.exists("data/log.json")):
-                with open("data/log.json", 'w'): pass
-                log = OrderedDict()
-            else:
-                with open(f"data/log.json", "r") as f:
-                    log = json.load(f)
+            csv_cols = logs.keys()
+            if not (os.path.exists(f"data/logs/{self.params['env_name']}.csv")):
+                with open(f"data/logs/{self.params['env_name']}.csv", 'a') as f:
+                    writer = csv.DictWriter(f, fieldnames=csv_cols)
+                    writer.writeheader()
 
-            log[self.params["env_name"]] = logs
-            with open(f"data/log.json", "w") as f:
-                f.write(json.dumps(log, sort_keys=True, indent=2, cls=npEncoder))
+            with open(f"data/logs/{self.params['env_name']}.csv", 'a') as f:
+                writer = csv.DictWriter(f, fieldnames=csv_cols)
+                writer.writerow(logs)
 
             self.logger.flush()
 

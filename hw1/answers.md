@@ -1,11 +1,12 @@
 # HW1 ANSWERS
 
 ## 1.1
+
 See files in repo.
 
 ## 1.2
 
-`ep_len` and `eval_batch_size` are both 1000.
+Created with `run_bc.sh`. `ep_len` and `eval_batch_size` are both 1000. All tests were run with the default network parameters
 
 |                     | Ant     | HalfCheetah | Hopper  | Humanoid | Walker |
 |---------------------|---------|-------------|---------|----------|--------|
@@ -20,3 +21,45 @@ See files in repo.
 | Train_MinReturn     | 4701.5  | 4122.7      | 3770.7  | 10323.5  | 5557.6 |
 | Train_StdReturn     | 12.2    | 83.0        | 1.9     | 21.0     | 9.4    |
 | Training Loss       | 0.00076 | 0.00176     | 0.00295 | 0.0497   | 0.0066 |
+
+## 1.3
+
+Created with `run_hyperparameters.sh`. I experimented with 3 different hyperparameters: batch size, number of layers in the network, and layer size. All tests were run on the `Humanoid-v2` agent.
+
+### Batch Size
+
+![batch_size error](data/hyperparameters/batch_size.png)
+
+Hard to say much with only 1 iteration of running, but we can clearly see a marked improvement in performance as batch size increases, with diminishing returns.
+
+### Number of Layers
+
+![n_layers error](data/hyperparameters/n_layers.png)
+
+### Layer Size
+
+![size error](data/hyperparameters/size.png)
+
+## 2.2
+
+All network parameters were left default.
+
+### Ant-v2
+
+![Ant-v2 DAgger](data/dagger/Ant-v2.png)
+
+### HalfCheetah-v2
+
+![HalfCheetah-v2 DAgger](data/dagger/HalfCheetah-v2.png)
+
+### Hopper-v2
+
+![Hopper-v2 DAgger](data/dagger/Hopper-v2.png)
+
+### Humanoid-v2
+
+![Humanoid-v2 DAgger](data/dagger/Humanoid-v2.png)
+
+### Walker2d-v2
+
+![Walker2d-v2 DAgger](data/dagger/Walker2d-v2.png)
