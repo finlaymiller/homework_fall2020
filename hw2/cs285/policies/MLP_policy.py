@@ -10,6 +10,7 @@ from torch import distributions
 
 from cs285.infrastructure import pytorch_util as ptu
 from cs285.policies.base_policy import BasePolicy
+from cs285.infrastructure import utils
 
 
 class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
@@ -91,10 +92,15 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         else:
             observation = obs[None]
 
+        # TODO return the action that the policy prescribes
+        observation = ptu.from_numpy(observation)
+        action_distr = self.forward(observation)
         if self.discrete:
-            return ptu.to_numpy(self.logits_na(ptu.from_numpy(observation)))
+            return ptu.to_numpy(action_distr.sample())
+            # logits = ptu.to_numpy(action_distr.logits)
+            # return [np.argmax(logits)]
         else:
-            return ptu.to_numpy(self.mean_net(ptu.from_numpy(observation)))
+            return ptu.to_numpy(action_distr.sample())
 
 
     # update/train this policy
@@ -107,7 +113,23 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
     # return more flexible objects, such as a
     # `torch.distributions.Distribution` object. It's up to you!
     def forward(self, observation: torch.FloatTensor):
-        return self.logits_na(observation) if self.discrete else self.mean_net(observation)
+        if self.discrete:
+            logits = self.logits_na(observation)
+            actions_probability = F.softmax(logits, dim=-1)
+            # inspect gradient of discrete actions
+            if torch.sum(torch.isnan(actions_probability)).item() > 0:
+                print(f'\nInspecting discrete action gradient')
+                params = self.logits_na.parameters()
+                print(actions_probability)
+                for param in params:
+                    print(param)
+                print(actions_probability)
+                assert False, "Gradient Error"
+            return distributions.categorical.Categorical(actions_probability)
+        else:
+            batch_mean = self.mean_net(observation)
+            scale = torch.exp(self.logstd)
+            return distributions.normal.Normal(batch_mean, scale)
 
 
 #####################################################
@@ -124,7 +146,7 @@ class MLPPolicyPG(MLPPolicy):
         actions = ptu.from_numpy(actions)
         advantages = ptu.from_numpy(advantages)
 
-        # TODO: compute the loss that should be optimized when training with policy gradient
+        # compute the loss that should be optimized when training with policy gradient
         # HINT1: Recall that the expression that we want to MAXIMIZE
             # is the expectation over collected trajectories of:
             # sum_{t=0}^{T-1} [grad [log pi(a_t|s_t) * (Q_t - b_t)]]
@@ -132,33 +154,40 @@ class MLPPolicyPG(MLPPolicy):
             # by the `forward` method
         # HINT3: don't forget that `optimizer.step()` MINIMIZES a loss
 
-        loss = TODO
+        action_distribution = self.forward(observations)
+        # advantages = advantages.view(-1, *([1] * (log_prob.ndim - 1)))
+        # assert log_prob.ndim == advantages.ndim
 
-        # TODO: optimize `loss` using `self.optimizer`
-        # HINT: remember to `zero_grad` first
-        TODO
+        loss = -torch.mean(advantages * action_distribution.log_prob(actions))
+
+        # optimize `loss` using `self.optimizer`
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
 
         if self.nn_baseline:
-            ## TODO: normalize the q_values to have a mean of zero and a standard deviation of one
+            ## normalize the q_values to have a mean of zero and a standard deviation of one
             ## HINT: there is a `normalize` function in `infrastructure.utils`
-            targets = TODO
-            targets = ptu.from_numpy(targets)
+            q_values = ptu.from_numpy(q_values).to(ptu.device)
+            targets = utils.normalize(q_values, np.mean(q_values), np.std(q_values))
 
-            ## TODO: use the `forward` method of `self.baseline` to get baseline predictions
-            baseline_predictions = TODO
+            ## use the `forward` method of `self.baseline` to get baseline predictions
+            baseline_predictions = self.baseline.forward(observations).squeeze()
             
             ## avoid any subtle broadcasting bugs that can arise when dealing with arrays of shape
             ## [ N ] versus shape [ N x 1 ]
             ## HINT: you can use `squeeze` on torch tensors to remove dimensions of size 1
             assert baseline_predictions.shape == targets.shape
             
-            # TODO: compute the loss that should be optimized for training the baseline MLP (`self.baseline`)
+            # compute the loss that should be optimized for training the baseline MLP (`self.baseline`)
             # HINT: use `F.mse_loss`
-            baseline_loss = TODO
+            baseline_loss = F.mse_loss(baseline_predictions, targets)
 
-            # TODO: optimize `baseline_loss` using `self.baseline_optimizer`
+            # optimize `baseline_loss` using `self.baseline_optimizer`
             # HINT: remember to `zero_grad` first
-            TODO
+            self.baseline_optimizer.zero_grad()
+            baseline_loss.backward()
+            self.baseline_optimizer.step()
 
         train_log = {
             'Training Loss': ptu.to_numpy(loss),
