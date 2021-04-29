@@ -1,26 +1,47 @@
+import os
 import glob
+import numpy as np
 import tensorflow as tf
+import matplotlib.pyplot as plt
 
 def get_section_results(file):
-    """
-        requires tensorflow==1.12.0
-    """
-    X = []
-    Y = []
-    for e in tf.train.summary_iterator(file):
+    min = []
+    avg = []
+    max = []
+    for e in tf.compat.v1.train.summary_iterator(file):
         for v in e.summary.value:
-            if v.tag == 'Train_EnvstepsSoFar':
-                X.append(v.simple_value)
+            if v.tag == 'Eval_MinReturn':
+                min.append(v.simple_value)
             elif v.tag == 'Eval_AverageReturn':
-                Y.append(v.simple_value)
-    return X, Y
+                avg.append(v.simple_value)
+            if v.tag == 'Eval_MaxReturn':
+                max.append(v.simple_value)
+    return min, avg, max
 
 if __name__ == '__main__':
-    import glob
+    directory = 'data/q1a'
+    data = [list(range(100))]
+    allSeries = []
 
-    logdir = 'data/q1_lb_rtg_na_CartPole-v0_13-09-2020_23-32-10/events*'
-    eventfile = glob.glob(logdir)[0]
+    for folder in os.listdir(directory):
+        logdir = os.path.join(directory, folder, 'events*')
+        eventfile = glob.glob(logdir)[0]
 
-    X, Y = get_section_results(eventfile)
-    for i, (x, y) in enumerate(zip(X, Y)):
-        print('Iteration {:d} | Train steps: {:d} | Return: {}'.format(i, int(x), y))
+        min, avg, max = get_section_results(eventfile)
+        for i, (mi, av, ma) in enumerate(zip(min, avg, max)):
+            print(f"Iteration {i} | Min: {mi:.2f} | Avg: {av:.2f} | Max: {ma:.2f}")
+        
+        data.append([min, avg, max])
+        allSeries.append(folder)
+
+    print(f"Loaded {len(data) - 1} data from {len(allSeries)} series")
+
+    fig, ax = plt.subplots()
+    plt.title("The Effect of Advantage Standardization and Reward to Go on Large-batch Policy Gradients")
+    ax.set_ylabel("Average Return")
+    ax.set_xlabel("Iterations")
+    for i, series in enumerate(allSeries):
+        ax.plot(data[0], data[i+1][1], label=series)
+        ax.fill_between(data[0], data[i+1][0], data[i+1][2], alpha=0.2)
+        ax.legend()
+    plt.show()
